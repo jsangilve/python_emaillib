@@ -5,9 +5,10 @@ from email.mime.text import MIMEText
 
 class EmailSender(object):
 
-  def __init__(self, login, password, server):
+  def __init__(self, login, password, name, server):
     self.login = login
     self.password = password
+    self.from_name = name
     self.mail_server = server
 
   def send_email(self, subject, to, content):
@@ -39,7 +40,7 @@ class EmailSender(object):
       message['To'] = to
       recipients = [to]
 
-    message['From'] = self.login
+    message['From'] = self.from_name
 
     try:
       server = smtplib.SMTP(self.mail_server)
