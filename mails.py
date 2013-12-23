@@ -5,52 +5,59 @@ from email.mime.text import MIMEText
 
 class EmailSender(object):
 
-  def __init__(self, login, password, name, server):
-    self.login = login
-    self.password = password
-    self.from_name = name
-    self.mail_server = server
+    def __init__(self, login, password, name, server):
+        self.login = login
+        self.password = password
+        self.from_name = name
+        self.server_name = server
+        self.server = None
 
-  def send_email(self, subject, to, content):
-    """
-    Send a plain/text email
-    """
-    message = MIMEText(content)
-    return self.send(message, subject, to)
+    def log_in(self):
+        """
+          Makes login using credenciales provided on initialization
 
-  def send_html_email(self, subject, to, html):
-    """
-    Send an email with a HTML attachment
-    """
-    message = MIMEMultipart('alternative')
-    message.attach(html)
-    return self.send(message, subject, to)
+          If an error is raised, class attribute 'server' will remain
+          None.
+        """
+        srv = smtplib.SMTP(self.server_name)
+        srv.starttls()
+        srv.login(self.login, self.password)
+        self.server = srv
 
-  def send(self, message, subject, to):
-    """
-    Build and send an email message.
-    The message attribute has been previously MIMEd
-    """
-    message['Subject'] = subject
+    def send_email(self, subject, to, content):
+        """
+          Sends a plain/text email
+        """
+        message = MIMEText(content)
+        self.log_in()
+        self.send(message, subject, to)
 
-    if type(to) is list:
-      message['To'] = ', '.join(to)
-      recipients = to
-    else:
-      message['To'] = to
-      recipients = [to]
+    def send_html_email(self, subject, to, html):
+        """
+          Sends an email with a HTML attachment
+        """
+        message = MIMEMultipart('alternative')
+        message.attach(html)
+        self.log_in()
+        self.send(message, subject, to)
 
-    message['From'] = self.from_name
+    def send_message(self, msg, attempt=2):
+        """
+          Sends message to the server and retry 2 times in case of failure
 
-    try:
-      server = smtplib.SMTP(self.mail_server)
-      server.starttls()
-      server.login(self.login, self.password)
-      server.sendmail(message['from'], recipients, message.as_string())
+          User must have logged in before calling this method. Otherwise,
+          a SMTPServerDisconnected Exception will be raised.
+        """
+        try:
+            if self.server is None:
+                raise smtplib.SMTPServerDisconnected()
 
-      server.quit()
+            if attempt > 0:
+                self.server.sendmail(msg['From'], [msg['To']], msg.as_string())
+                print "Email sent to: " + msg['To']
 
-      print u"Email sent"
-
-    except smtplib.SMTPResponseException as e:
-      print u"Error: Unable to send email. " + e.smtp_error
+        except smtplib.SMTPRecipientsRefused as e:
+            print "Recipient refused: " + e.recipients
+        except (smtplib.SMTPResponseException, smtplib.SMTPServerDisconnected) as e:
+            print u"Error: Unable to send email. " + e.smtp_error
+            self.send_message(msg, attempt - 1)
